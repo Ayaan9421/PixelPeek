@@ -3,7 +3,7 @@ import { createRoom, getRoom, deleteRoom, hasRoom } from '../rooms/roomStore.js'
 import { createRoomState, createPlayer, serializeRoom } from '../rooms/roomModel.js'
 import { generateUniqueRoomCode } from '../utils/roomCode.js'
 import { normalizeSettings, RECONNECT_GRACE_MS } from '../config/gameDefaults.js'
-import { clearRoomTimer, cleanupRoomImage } from './gameHandlers.js'
+import { clearRoomTimer, cleanupRoomImage, clearExpansionTimers, clearHintTimers } from './gameHandlers.js'
 import { findRoomCodeForSocket, findPlayerBySocket } from './socketUtils.js'
 
 const socketToRoom = new Map()
@@ -184,6 +184,8 @@ function promoteHostIfNeeded(room) {
 function cleanupOrBroadcast(io, room) {
         if (room.players.size === 0) {
                 clearRoomTimer(room.code)
+                clearExpansionTimers(room.code)
+                clearHintTimers(room.code)
                 cleanupRoomImage(room)
                 deleteRoom(room.code)
                 return

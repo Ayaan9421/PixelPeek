@@ -10,6 +10,8 @@ import { IMAGE_LIMITS } from '../config/gameDefaults.js'
 
 const router = Router()
 
+const ANSWER_MAX_LEN = 40
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: IMAGE_LIMITS.maxBytes },
@@ -20,7 +22,7 @@ const upload = multer({
 
 router.post('/upload-image', upload.single('image'), (req, res) => {
   const io = req.app.get('io')
-  const { roomCode, playerUuid, cropX, cropY, cropWidth, cropHeight, naturalWidth, naturalHeight } = req.body
+  const { roomCode, playerUuid, cropX, cropY, cropWidth, cropHeight, naturalWidth, naturalHeight, answer } = req.body
 
   if (!req.file) {
     return res.status(400).json({ ok: false, error: 'Image file is required.' })
@@ -37,6 +39,14 @@ router.post('/upload-image', upload.single('image'), (req, res) => {
   const picker = room.players.get(playerUuid)
   if (!picker) {
     return res.status(403).json({ ok: false, error: 'Player not in room.' })
+  }
+
+  const trimmedAnswer = (answer || '').trim().slice(0, ANSWER_MAX_LEN)
+  if (!trimmedAnswer) {
+    return res.status(400).json({ ok: false, error: 'You must enter the answer for your image.' })
+  }
+  if (!/[a-zA-Z]/.test(trimmedAnswer)) {
+    return res.status(400).json({ ok: false, error: 'Answer must contain at least one letter.' })
   }
 
   const crop = {
@@ -68,16 +78,21 @@ router.post('/upload-image', upload.single('image'), (req, res) => {
 
   saveImageBuffer(filename, req.file.buffer)
 
+  room.currentAnswer = trimmedAnswer
+
   const imageInfo = {
     filename,
     token: signImageToken(filename),
     crop,
     naturalWidth: naturalW,
     naturalHeight: naturalH,
+    expansionsUsed: 0,
+    pendingCorner: null,
   }
 
   const locked = handleImageLocked(io, room.code, playerUuid, imageInfo)
   if (!locked) {
+    room.currentAnswer = null
     deleteImageFile(filename)
     return res.status(409).json({ ok: false, error: 'Could not lock image (round may have already moved on).' })
   }

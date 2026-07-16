@@ -1,3 +1,5 @@
+import { CROP_EXPANSION } from '../config/gameDefaults.js'
+
 export function createPlayer({ uuid, name, socketId, isHost = false }) {
         return {
                 uuid,
@@ -25,6 +27,19 @@ export function createRoomState({ code, hostUuid, settings }) {
                 roundDeadline: null,
                 currentImage: null,
                 createdAt: Date.now(),
+                currentAnswer: null,
+                chatState: createChatState(),
+                // Each entry: { charIndex: number, letter: string }
+                // charIndex is a flat index into the full answer string (spaces included).
+                // Client can use answerPattern to reconstruct word/letter positions.
+                revealedHints: [],
+        }
+}
+
+export function createChatState() {
+        return {
+                // answerRevealed: false,
+                correctGuessers: new Set(),
         }
 }
 
@@ -45,7 +60,19 @@ export function serializeRoom(room) {
                         crop: room.currentImage.crop,
                         naturalWidth: room.currentImage.naturalWidth,
                         naturalHeight: room.currentImage.naturalHeight,
+                        expansionsUsed: room.currentImage.expansionsUsed || 0,
+                        maxExpansions: CROP_EXPANSION.maxExpansions,
+                        expansionCheckpoints: CROP_EXPANSION.checkpoints,
                 } : null,
+                // Never send room.currentAnswer itself to the client. Everyone (including
+                // the picker's own client) only gets the per-word letter-count pattern so
+                // HintBar can render "_ _ _  _ _ _ _" without leaking the answer.
+                answerPattern: room.currentAnswer
+                        ? room.currentAnswer.trim().split(/\s+/).map((word) => word.length)
+                        : null,
+                // Flat-index + letter pairs for each hint revealed so far this round.
+                // A reconnecting client gets the full list and can replay all reveals.
+                revealedHints: room.revealedHints ?? [],
                 players: Array.from(room.players.values()).map(serializePlayer),
         }
 }
@@ -59,4 +86,3 @@ export function serializePlayer(player) {
                 connected: player.connected
         }
 }
-

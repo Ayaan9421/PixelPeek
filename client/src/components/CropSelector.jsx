@@ -13,6 +13,7 @@ export default function CropSelector() {
   const [displayHeight, setDisplayHeight] = useState(0)
   const [selection, setSelection] = useState(null) // display-space {x, y, width, height}
   const [dragStart, setDragStart] = useState(null)
+  const [answer, setAnswer] = useState('')
   const [fileError, setFileError] = useState(null)
   const [uploadError, setUploadError] = useState(null)
   const [uploading, setUploading] = useState(false)
@@ -105,6 +106,16 @@ export default function CropSelector() {
       setUploadError('Drag a crop selection on the image first.')
       return
     }
+    const trimmedAnswer = answer.trim()
+    if (!trimmedAnswer) {
+      setUploadError('Enter the answer for your image first.')
+      return
+    }
+    if (!/[a-zA-Z]/.test(trimmedAnswer)) {
+      setUploadError('Answer must contain at least one letter.')
+      return
+    }
+
 
     const scale = natural.width / DISPLAY_WIDTH
     const crop = {
@@ -116,6 +127,7 @@ export default function CropSelector() {
 
     setUploading(true)
     try {
+      console.log('hi')
       await uploadPickedImage({
         roomCode: room.code,
         playerUuid: you.uuid,
@@ -123,7 +135,9 @@ export default function CropSelector() {
         crop,
         naturalWidth: natural.width,
         naturalHeight: natural.height,
+        answer: trimmedAnswer,
       })
+      console.log('hi2')
     } catch (err) {
       setUploadError(err.message)
       setUploading(false)
@@ -169,6 +183,19 @@ export default function CropSelector() {
                 }}
               />
             )}
+          </div>
+
+          <div className="answer-field">
+            <label htmlFor="picker-answer">Secret answer (guessers won&apos;t see this)</label>
+            <input
+              id="picker-answer"
+              type="text"
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              placeholder="e.g. golden retriever"
+              maxLength={40}
+              autoComplete="off"
+            />
           </div>
 
           <div className="crop-actions">

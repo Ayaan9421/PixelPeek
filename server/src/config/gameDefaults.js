@@ -26,3 +26,14 @@ export const IMAGE_LIMITS = {
         maxBytes: 8 * 1024 * 1024,
         allowedMimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
 }
+
+
+// Crop reveal mechanic during the guessing phase. checkpoints[i] is the
+// fraction of guessTimeSec that must have elapsed before expansion #(i+1)
+// is allowed. growthFactor scales both crop dimensions each expansion,
+// anchored at the corner opposite the one the picker chose.
+export const CROP_EXPANSION = {
+        maxExpansions: 2,
+        checkpoints: [0.5, 0.8],
+        growthFactor: 1.6,
+}

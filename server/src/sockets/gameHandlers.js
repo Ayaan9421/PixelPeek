@@ -1,12 +1,23 @@
 import { getRoom } from '../rooms/roomStore.js'
-import { serializeRoom } from '../rooms/roomModel.js'
+import { serializeRoom, createChatState } from '../rooms/roomModel.js'
 import { shuffle } from '../utils/shuffle.js'
 import { deleteImageFile } from '../services/imageStorage.js'
 import { findRoomCodeForSocket, findPlayerBySocket } from './socketUtils.js'
+import { performScheduledExpansion } from './cropHandlers.js'
+import { CROP_EXPANSION } from '../config/gameDefaults.js'
 
 // Per-room phase timers (pick timer or guess timer), kept outside the
 // room object so we never try to serialize a Node Timeout.
 const phaseTimers = new Map() // roomCode -> Timeout
+
+// Per-room checkpoint timers for the crop-expansion reveal mechanic.
+// Separate from phaseTimers since there can be several of these live at
+// once per room (one per entry in CROP_EXPANSION.checkpoints).
+const expansionTimers = new Map() // roomCode -> Timeout[]
+
+// Per-room letter-hint timers. One timeout per hint slot, firing at
+// evenly-spaced intervals across the guess window.
+const hintTimers = new Map() // roomCode -> Timeout[]
 
 export function registerGameHandlers(io, socket) {
   socket.on('start-game', (_payload, callback) => {
@@ -56,7 +67,98 @@ export function handleImageLocked(io, roomCode, pickerUuid, imageInfo) {
   }, room.settings.guessTimeSec * 1000)
   phaseTimers.set(room.code, timer)
 
+  scheduleExpansionCheckpoints(io, room)
+  scheduleHints(io, room)
+
   return true
+}
+
+// Schedules one timer per entry in CROP_EXPANSION.checkpoints, firing at
+// that fraction of the guess timer. Each timer applies the picker's
+// currently-selected corner (or a random one if they never chose) via
+// performScheduledExpansion -- there's no manual "confirm expand" step
+// anymore, it just happens when the clock gets there.
+function scheduleExpansionCheckpoints(io, room) {
+  clearExpansionTimers(room.code)
+
+  const guessTimeMs = room.settings.guessTimeSec * 1000
+  const timers = CROP_EXPANSION.checkpoints.map((fraction, index) =>
+    setTimeout(() => {
+      performScheduledExpansion(io, room.code, index)
+    }, Math.round(guessTimeMs * fraction))
+  )
+  expansionTimers.set(room.code, timers)
+}
+
+// Exported so roomHandlers can clear these alongside the phase timer if a
+// room closes or empties mid-round.
+export function clearExpansionTimers(roomCode) {
+  const timers = expansionTimers.get(roomCode)
+  if (timers) {
+    timers.forEach(clearTimeout)
+    expansionTimers.delete(roomCode)
+  }
+}
+
+// Schedules numHints letter-reveal timeouts evenly across the guess window.
+// Interval = guessTimeSec / (numHints + 1), so for 60 s / 3 hints the
+// reveals fire at 15 s, 30 s, and 45 s.
+// Each reveal picks a random position that hasn't been uncovered yet and
+// emits 'hint-revealed' with { charIndex, letter } to the whole room.
+// The hint is also stored in room.revealedHints so reconnecting players
+// get the full list via serializeRoom.
+function scheduleHints(io, room) {
+  clearHintTimers(room.code)
+
+  const numHints = room.settings.numHints ?? 0
+  if (numHints <= 0 || !room.currentAnswer) return
+
+  const answer = room.currentAnswer
+  const guessTimeMs = room.settings.guessTimeSec * 1000
+  const intervalMs = guessTimeMs / (numHints + 1)
+
+  const timers = Array.from({ length: numHints }, (_, i) =>
+    setTimeout(() => {
+      revealNextHint(io, room.code)
+    }, Math.round(intervalMs * (i + 1)))
+  )
+
+  hintTimers.set(room.code, timers)
+}
+
+// Picks a random unrevealed, non-space character in the answer and
+// broadcasts it. No-ops if every character is already revealed.
+function revealNextHint(io, roomCode) {
+  const room = getRoom(roomCode)
+  if (!room || room.roundPhase !== 'guessing' || !room.currentAnswer) return
+
+  const answer = room.currentAnswer
+  const alreadyRevealed = new Set(room.revealedHints.map((h) => h.charIndex))
+
+  // Build the pool of candidate indices: non-space, not yet revealed.
+  const candidates = []
+  for (let i = 0; i < answer.length; i++) {
+    if (answer[i] !== ' ' && !alreadyRevealed.has(i)) {
+      candidates.push(i)
+    }
+  }
+
+  if (candidates.length === 0) return // nothing left to reveal
+
+  const charIndex = candidates[Math.floor(Math.random() * candidates.length)]
+  const letter = answer[charIndex]
+  const hint = { charIndex, letter }
+
+  room.revealedHints.push(hint)
+  io.to(roomCode).emit('hint-revealed', hint)
+}
+
+export function clearHintTimers(roomCode) {
+  const timers = hintTimers.get(roomCode)
+  if (timers) {
+    timers.forEach(clearTimeout)
+    hintTimers.delete(roomCode)
+  }
 }
 
 // Exported so roomHandlers can clear a room's timer if everyone leaves
@@ -67,6 +169,7 @@ export function clearRoomTimer(roomCode) {
     clearTimeout(timer)
     phaseTimers.delete(roomCode)
   }
+  clearHintTimers(roomCode)
 }
 
 export function cleanupRoomImage(room) {
@@ -81,6 +184,8 @@ function finishGuessingPhase(io, roomCode) {
   if (!room) return
   if (room.roundPhase !== 'guessing') return
 
+  clearExpansionTimers(roomCode)
+  clearHintTimers(roomCode)
   cleanupRoomImage(room)
   io.to(roomCode).emit('round-reveal', serializeRoom(room))
 
@@ -98,11 +203,17 @@ function startNextTurn(io, room) {
   room.pickerUuid = nextPickerUuid
   room.roundPhase = 'picking'
   room.roundDeadline = Date.now() + room.settings.pickTimeSec * 1000
+  room.currentAnswer = null
+  room.chatState = createChatState()
+  room.revealedHints = []
   cleanupRoomImage(room)
 
   io.to(room.code).emit('round-started', serializeRoom(room))
+  io.to(room.code).emit('chat-cleared')
 
   clearRoomTimer(room.code)
+  clearExpansionTimers(room.code)
+  clearHintTimers(room.code)
   const timer = setTimeout(() => {
     handlePickTimeout(io, room.code)
   }, room.settings.pickTimeSec * 1000)
@@ -167,5 +278,7 @@ function endGame(io, room) {
   room.pickerUuid = null
   cleanupRoomImage(room)
   clearRoomTimer(room.code)
+  clearExpansionTimers(room.code)
+  clearHintTimers(room.code)
   io.to(room.code).emit('game-ended', serializeRoom(room))
 }

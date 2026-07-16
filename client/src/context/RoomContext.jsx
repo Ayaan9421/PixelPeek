@@ -25,6 +25,18 @@ export function RoomProvider({ children }) {
     socket.on('image-locked', onRoomUpdated)
     socket.on('round-reveal', onRoomUpdated)
     socket.on('game-ended', onRoomUpdated)
+    socket.on('crop-expanded', onRoomUpdated)
+
+    // hint-revealed carries a single { charIndex, letter } rather than a
+    // full room snapshot. We splice it into the existing room state so the
+    // HintBar can update without a full re-sync.
+    function onHintRevealed(hint) {
+      setRoom((prev) => {
+        if (!prev) return prev
+        return { ...prev, revealedHints: [...(prev.revealedHints ?? []), hint] }
+      })
+    }
+    socket.on('hint-revealed', onHintRevealed)
 
     return () => {
       socket.off('room-updated', onRoomUpdated)
@@ -33,6 +45,8 @@ export function RoomProvider({ children }) {
       socket.off('image-locked', onRoomUpdated)
       socket.off('round-reveal', onRoomUpdated)
       socket.off('game-ended', onRoomUpdated)
+      socket.off('crop-expanded', onRoomUpdated)
+      socket.off('hint-revealed', onHintRevealed)
     }
   }, [])
 
@@ -99,6 +113,12 @@ export function RoomProvider({ children }) {
     })
   }, [])
 
+  const selectExpansionCorner = useCallback((corner, onError) => {
+    socket.emit('select-expansion-corner', { corner }, (res) => {
+      if (!res.ok && onError) onError(res.error)
+    })
+  }, [])
+
   const value = {
     room,
     you,
@@ -110,6 +130,7 @@ export function RoomProvider({ children }) {
     startGame,
     updateSettings,
     updateName,
+    selectExpansionCorner,
     isHost: !!(room && you && room.hostUuid === you.uuid),
   }
 

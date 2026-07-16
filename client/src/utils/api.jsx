@@ -1,6 +1,6 @@
 import { SERVER_URL } from '../sockets/socket.js'
 
-export async function uploadPickedImage({ roomCode, playerUuid, file, crop, naturalWidth, naturalHeight }) {
+export async function uploadPickedImage({ roomCode, playerUuid, file, crop, naturalWidth, naturalHeight, answer }) {
   const form = new FormData()
   form.append('image', file)
   form.append('roomCode', roomCode)
@@ -11,6 +11,7 @@ export async function uploadPickedImage({ roomCode, playerUuid, file, crop, natu
   form.append('cropHeight', Math.round(crop.height))
   form.append('naturalWidth', Math.round(naturalWidth))
   form.append('naturalHeight', Math.round(naturalHeight))
+  form.append('answer', answer)
 
   const res = await fetch(`${SERVER_URL}/api/upload-image`, { method: 'POST', body: form })
   const data = await res.json()
