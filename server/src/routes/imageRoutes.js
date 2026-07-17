@@ -87,7 +87,7 @@ router.post('/upload-image', upload.single('image'), async (req, res) => {
       if (!relevant) {
         deleteImageFile(filename)
         // Penalise the troll picker and tell everyone what happened.
-        applyTrollPenalty(io, room, pickerUuid)
+        applyTrollPenalty(io, room, playerUuid)
         return res.status(422).json({
           ok: false,
           error: 'Your image and answer don\'t seem to match. Round skipped.',

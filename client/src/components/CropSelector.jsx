@@ -166,7 +166,13 @@ export default function CropSelector() {
       })
       console.log('hi2')
     } catch (err) {
-      setUploadError(err.message)
+      // If the server rejected this as a troll penalty (CLIP mismatch),
+      // don't show a local error — the 'troll-penalty' socket event will
+      // take over and show the reveal screen for everyone including the picker.
+      // For any other upload failure, surface the error normally.
+      if (!err.message?.toLowerCase().includes('match')) {
+        setUploadError(err.message)
+      }
       setUploading(false)
     }
   }

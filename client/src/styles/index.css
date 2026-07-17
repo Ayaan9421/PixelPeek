@@ -1034,6 +1034,53 @@ body {
         margin-top: 8px;
 }
 
+/* ── End-game actions ─────────────────────────────────────────────── */
+.ended-host-actions {
+        display: flex;
+        gap: 12px;
+        margin-top: 16px;
+        justify-content: center;
+        flex-wrap: wrap;
+}
+
+.ended-action-btn {
+        padding: 10px 22px;
+        border-radius: 8px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        border: none;
+        cursor: pointer;
+        transition: opacity 0.15s, transform 0.1s;
+}
+
+.ended-action-btn:hover {
+        opacity: 0.88;
+        transform: translateY(-1px);
+}
+
+.ended-action-btn:active {
+        transform: translateY(0);
+}
+
+.ended-action-btn--primary {
+        background: #4f46e5;
+        color: #fff;
+}
+
+.ended-action-btn--danger {
+        background: #374151;
+        color: #f87171;
+        border: 1px solid #4b5563;
+}
+
+.ended-guest-actions {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        margin-top: 16px;
+}
+
 /* ── Gallery ─────────────────────────────────────────────────────────── */
 .gallery-grid {
         display: grid;
@@ -1199,4 +1246,75 @@ body {
                 opacity: 1;
                 transform: translateY(0);
         }
+}
+
+/* ── Troll Reveal Screen ──────────────────────────────────────────────── */
+.game-page--troll-reveal {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 60vh;
+        padding: 24px;
+}
+
+.troll-reveal-panel {
+        background: var(--surface);
+        border: 1px solid #ef4444;
+        border-radius: 16px;
+        padding: 32px 28px;
+        max-width: 480px;
+        width: 100%;
+        text-align: center;
+        animation: troll-fade-in 0.35s ease;
+        box-shadow: 0 0 32px rgba(239, 68, 68, 0.15);
+}
+
+.troll-reveal-icon {
+        font-size: 3rem;
+        margin-bottom: 8px;
+}
+
+.troll-reveal-title {
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #fca5a5;
+        margin: 0 0 10px;
+}
+
+.troll-reveal-desc {
+        color: var(--text-muted);
+        margin: 0 0 24px;
+        line-height: 1.5;
+}
+
+.troll-reveal-scores {
+        text-align: left;
+        margin-bottom: 24px;
+}
+
+.rso-row--troll {
+        background: rgba(239, 68, 68, 0.08);
+        border-radius: 6px;
+}
+
+.rso-row--troll .rso-pts {
+        color: #f87171;
+}
+
+.rso-row--you {
+        outline: 1px solid var(--accent);
+        border-radius: 6px;
+}
+
+.rso-badge--troll {
+        background: rgba(239, 68, 68, 0.2);
+        color: #fca5a5;
+        border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.troll-reveal-waiting {
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        margin: 0;
+        opacity: 0.7;
 }

@@ -22,6 +22,64 @@ const expansionTimers = new Map() // roomCode -> Timeout[]
 const hintTimers = new Map() // roomCode -> Timeout[]
 
 export function registerGameHandlers(io, socket) {
+  socket.on('new-game', (_payload, callback) => {
+    if (typeof callback !== 'function') callback = () => { }
+
+    const roomCode = findRoomCodeForSocket(socket)
+    const room = roomCode && getRoom(roomCode)
+    if (!room) return callback({ ok: false, error: 'Room not found.' })
+
+    const player = findPlayerBySocket(room, socket.id)
+    if (!player || !player.isHost) {
+      return callback({ ok: false, error: 'Only the host can start a new game.' })
+    }
+    if (room.status !== 'ended') {
+      return callback({ ok: false, error: 'Game has not ended yet.' })
+    }
+
+    // Reset all scores to 0
+    for (const p of room.players.values()) {
+      p.score = 0
+    }
+
+    // Reset room to lobby state
+    room.status = 'lobby'
+    room.currentRound = 0
+    room.pickerUuid = null
+    room.pickerOrder = []
+    room.currentPickerIndex = -1
+    room.roundPhase = null
+    room.roundDeadline = null
+    room.currentAnswer = null
+    room.roundGallery = []
+    room.revealedHints = []
+    room.currentImage = null
+
+    room.chatState = createChatState()
+    io.to(room.code).emit('game-restarted', { room: serializeRoom(room) })
+    callback({ ok: true })
+  })
+
+  socket.on('end-room', (_payload, callback) => {
+    if (typeof callback !== 'function') callback = () => { }
+
+    const roomCode = findRoomCodeForSocket(socket)
+    const room = roomCode && getRoom(roomCode)
+    if (!room) return callback({ ok: false, error: 'Room not found.' })
+
+    const player = findPlayerBySocket(room, socket.id)
+    if (!player || !player.isHost) {
+      return callback({ ok: false, error: 'Only the host can end the room.' })
+    }
+    if (room.status !== 'ended') {
+      return callback({ ok: false, error: 'Game has not ended yet.' })
+    }
+
+    // Notify all players that the room is being closed
+    io.to(room.code).emit('room-closed')
+    callback({ ok: true })
+  })
+
   socket.on('next-turn', (_payload, callback) => {
     if (typeof callback !== 'function') callback = () => { }
 
@@ -278,7 +336,7 @@ function startNextTurn(io, room) {
   clearExpansionTimers(room.code)
   clearHintTimers(room.code)
   const timer = setTimeout(() => {
-    handlePickTimeout(io, room.code)
+    handlePickTimeout(io, room.code, room.pickerUuid)
   }, room.settings.pickTimeSec * 1000)
   phaseTimers.set(room.code, timer)
 }
@@ -311,15 +369,56 @@ function advancePicker(room) {
   return null // everyone in pickerOrder has left
 }
 
-function handlePickTimeout(io, roomCode) {
+function handlePickTimeout(io, roomCode, pickerUuid) {
   const room = getRoom(roomCode)
   if (!room) return
   if (room.roundPhase !== 'picking') return // image was already locked in the meantime
 
   applyPickTimeoutPenalty(room)
-  io.to(roomCode).emit('pick-timeout', serializeRoom(room))
 
-  startNextTurn(io, room)
+  // Get picker name safely from Map
+  const picker = room.players.get(room.pickerUuid)
+  const pickerName = picker?.name || 'The picker'
+
+  io.to(roomCode).emit('pick-timeout-penalty', {
+    pickerUuid: room.pickerUuid,
+    pickerName,
+    scoreDeltas: calculateScoreDeltas(room, pickerUuid), // or however you store the changes
+    message: "Picker didn't submit an image in time."
+  })
+
+  setTimeout(() => {
+    startNextTurn(io, room)
+  }, 8000)
+
+}
+
+function calculateScoreDeltas(room, pickerUuid) {
+  const scoresBefore = {}
+  for (const [uuid, player] of room.players.entries()) {
+    scoresBefore[uuid] = player.score
+  }
+
+  for (const player of room.players.values()) {
+    if (player.uuid === pickerUuid) {
+      player.score = Math.max(0, Math.round(player.score * 0.99))
+    } else {
+      player.score = Math.round(player.score * 1.01)
+    }
+  }
+
+  // Build per-player score delta summary for the reveal screen.
+  const scoreDeltas = {}
+  for (const [uuid, player] of room.players.entries()) {
+    scoreDeltas[uuid] = {
+      name: player.name,
+      before: scoresBefore[uuid],
+      after: player.score,
+      delta: player.score - scoresBefore[uuid],
+      isPicker: uuid === pickerUuid,
+    }
+  }
+  return scoreDeltas
 }
 
 // Called when the CLIP check decides the picker is trolling.
@@ -327,20 +426,44 @@ function handlePickTimeout(io, roomCode) {
 // Broadcasts 'troll-penalty' so the client can show a toast/banner,
 // then auto-advances the turn after 3 s so the room isn't stuck.
 export function applyTrollPenalty(io, room, pickerUuid) {
+  // Capture scores before applying deltas so we can show what changed.
+  const scoresBefore = {}
+  for (const [uuid, player] of room.players.entries()) {
+    scoresBefore[uuid] = player.score
+  }
+
   for (const player of room.players.values()) {
     if (player.uuid === pickerUuid) {
-      player.score = Math.max(0, player.score - player.score * 0.05)
+      player.score = Math.max(0, Math.round(player.score - player.score * 0.05))
     } else {
-      player.score += (player.score * 0.05)
+      player.score = Math.round(player.score + player.score * 0.05)
     }
   }
+
+  // Build per-player score delta summary for the reveal screen.
+  const scoreDeltas = {}
+  for (const [uuid, player] of room.players.entries()) {
+    scoreDeltas[uuid] = {
+      name: player.name,
+      before: scoresBefore[uuid],
+      after: player.score,
+      delta: player.score - scoresBefore[uuid],
+      isPicker: uuid === pickerUuid,
+    }
+  }
+
+  const picker = room.players.get(pickerUuid)
   io.to(room.code).emit('troll-penalty', {
     pickerUuid,
+    pickerName: picker?.name ?? 'The picker',
+    scoreDeltas,
     ...serializeRoom(room),
   })
+
+  // Give everyone 8 s to read the reveal screen before the next turn starts.
   setTimeout(() => {
     startNextTurn(io, room)
-  }, 3000)
+  }, 8000)
 }
 
 // Picker missed their window: -1% of their own score.
@@ -360,12 +483,20 @@ function endGame(io, room) {
   room.roundPhase = null
   room.roundDeadline = null
   room.pickerUuid = null
-  deleteAllRoomImages(room)
   clearRoomTimer(room.code)
   clearExpansionTimers(room.code)
   clearHintTimers(room.code)
+
+  // Emit FIRST so clients receive gallery tokens while files still exist
   io.to(room.code).emit('game-ended', {
     ...serializeRoom(room),
     roundGallery: room.roundGallery ?? [],
   })
+
+  // Delete files AFTER a delay — gives clients time to load gallery images
+  // (permanent tokens are valid but files must still be on disk)
+  const roomSnapshot = room  // capture reference
+  setTimeout(() => {
+    deleteAllRoomImages(roomSnapshot)
+  }, 5 * 60 * 1000) // 5 minutes
 }

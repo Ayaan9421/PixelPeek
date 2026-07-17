@@ -12,8 +12,10 @@ export function RoomProvider({ children }) {
   const [correctGuessers, setCorrectGuessers] = useState(new Set())
   const [roundRevealData, setRoundRevealData] = useState(null)
   const [roundGallery, setRoundGallery] = useState([])
-  const [trollBanner, setTrollBanner] = useState(null) // { pickerName } | null
-
+  const [trollBanner, setTrollBanner] = useState(null) // { pickerName } | null — kept for backward compat
+  // Full data for the troll reveal screen: { pickerName, pickerUuid, scoreDeltas }
+  const [trollRevealData, setTrollRevealData] = useState(null)
+  const [timeoutPenaltyData, setTimeoutPenaltyData] = useState(null)
   // Scores frozen at the moment guessing starts (image-locked).
   // Displayed in the player list throughout guessing + revealing so that
   // correct-guess point additions are invisible until the round-reveal overlay.
@@ -38,20 +40,24 @@ export function RoomProvider({ children }) {
     function onRoundStarted(data) {
       setCorrectGuessers(new Set())
       setRoundRevealData(null)
+      setTrollRevealData(null)
       setFrozenScores(null) // unfreeze — picking phase shows live scores
       setTrollBanner(null)
+      setTimeoutPenaltyData(null)
       setRoom(data)
     }
 
     function onTrollPenalty(data) {
-      // Find the picker's name from the player list in the payload
-      const picker = data.players?.find((p) => p.uuid === data.pickerUuid)
-      const pickerName = picker?.name ?? 'The picker'
+      const pickerName = data.pickerName ?? data.players?.find((p) => p.uuid === data.pickerUuid)?.name ?? 'The picker'
+      // Legacy toast banner (still used as a fallback in case trollRevealData is cleared early)
       setTrollBanner({ pickerName })
+      // Rich reveal screen data
+      setTrollRevealData({
+        pickerName,
+        pickerUuid: data.pickerUuid,
+        scoreDeltas: data.scoreDeltas ?? {},
+      })
       setRoom(data)
-      // Auto-dismiss after 4 s (the server advances the turn after 3 s,
-      // so by the time round-started fires the banner is already fading out)
-      setTimeout(() => setTrollBanner(null), 4000)
     }
 
     function onRoundReveal(data) {
@@ -82,16 +88,41 @@ export function RoomProvider({ children }) {
       setRoom(data)
     }
 
+    function onGameRestarted(data) {
+      setRoundGallery([])
+      setRoundRevealData(null)
+      setTrollRevealData(null)
+      setCorrectGuessers(new Set())
+      setFrozenScores(null)
+      setTrollBanner(null)
+      setRoom(data.room)
+    }
+
+    function onRoomClosed() {
+      socket.emit('leave-room')
+      setRoom(null)
+      setYou(null)
+      clearIdentity()
+    }
+
+    function onPickTimeoutPenalty(data) {
+      setTrollRevealData(null) // clear any previous troll screen
+      setTimeoutPenaltyData(data) // ← new state
+    }
+
     socket.on('room-updated', onRoomUpdated)
     socket.on('round-started', onRoundStarted)
     socket.on('pick-timeout', onRoomUpdated)
     socket.on('image-locked', onImageLocked)
     socket.on('round-reveal', onRoundReveal)
     socket.on('game-ended', onGameEnded)
+    socket.on('game-restarted', onGameRestarted)
+    socket.on('room-closed', onRoomClosed)
     socket.on('crop-expanded', onRoomUpdated)
     socket.on('hint-revealed', onHintRevealed)
     socket.on('player-guessed', onPlayerGuessed)
     socket.on('troll-penalty', onTrollPenalty)
+    socket.on('pick-timeout-penalty', onPickTimeoutPenalty)
 
     return () => {
       socket.off('room-updated', onRoomUpdated)
@@ -100,10 +131,13 @@ export function RoomProvider({ children }) {
       socket.off('image-locked', onImageLocked)
       socket.off('round-reveal', onRoundReveal)
       socket.off('game-ended', onGameEnded)
+      socket.off('game-restarted', onGameRestarted)
+      socket.off('room-closed', onRoomClosed)
       socket.off('crop-expanded', onRoomUpdated)
       socket.off('hint-revealed', onHintRevealed)
       socket.off('player-guessed', onPlayerGuessed)
       socket.off('troll-penalty', onTrollPenalty)
+      socket.off('pick-timeout-penalty', onPickTimeoutPenalty)
     }
   }, [])
 
@@ -173,6 +207,24 @@ export function RoomProvider({ children }) {
     })
   }, [])
 
+  const newGame = useCallback((onError) => {
+    socket.emit('new-game', {}, (res) => {
+      if (!res.ok && onError) onError(res.error)
+    })
+  }, [])
+
+  const endRoom = useCallback((onError) => {
+    socket.emit('end-room', {}, (res) => {
+      if (!res.ok && onError) onError(res.error)
+      else {
+        setRoom(null)
+        setYou(null)
+        clearIdentity()
+      }
+    })
+  }, [])
+
+
   const value = {
     room,
     you,
@@ -190,7 +242,11 @@ export function RoomProvider({ children }) {
     frozenScores,
     roundGallery,
     advanceTurn,
+    newGame,
+    endRoom,
     trollBanner,
+    trollRevealData,
+    timeoutPenaltyData,
     isHost: !!(room && you && room.hostUuid === you.uuid),
   }
 

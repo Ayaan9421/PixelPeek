@@ -15,9 +15,10 @@ export default function GamePage() {
     room, you, leaveRoom,
     correctGuessers, roundRevealData, frozenScores,
     roundGallery, advanceTurn, isHost, trollBanner,
+    trollRevealData, timeoutPenaltyData,
+    newGame, endRoom,
   } = useRoom()
   const secondsLeft = useCountdown(room?.roundDeadline)
-
   // Revealing phase: toggle between full image and scores panel
   const [revealView, setRevealView] = useState('scores') // 'image' | 'scores'
 
@@ -87,9 +88,31 @@ export default function GamePage() {
           </div>
         )}
 
-        <button type="button" onClick={leaveRoom} className="leave-btn ended-leave">
-          Back to Home
-        </button>
+        {isHost ? (
+          <div className="ended-host-actions">
+            <button
+              type="button"
+              className="ended-action-btn ended-action-btn--primary"
+              onClick={() => newGame()}
+            >
+              🔄 Start New Game
+            </button>
+            <button
+              type="button"
+              className="ended-action-btn ended-action-btn--danger"
+              onClick={() => endRoom()}
+            >
+              ✕ End Room
+            </button>
+          </div>
+        ) : (
+          <div className="ended-guest-actions">
+            <p className="waiting-for-host">Waiting for host to start a new game…</p>
+            <button type="button" onClick={leaveRoom} className="leave-btn ended-leave">
+              Leave Room
+            </button>
+          </div>
+        )}
       </div>
     )
   }
@@ -99,14 +122,31 @@ export default function GamePage() {
   const isPicker = room.pickerUuid === you?.uuid
   const isRevealing = room.roundPhase === 'revealing'
 
+  // ── Troll reveal screen ───────────────────────────────────────────────
+  // Shown after CLIP rejects the picker's image/answer combo.
+  // Replaces the normal game layout until round-started clears it.
+  if (trollRevealData) {
+    return (
+      <div className="game-page game-page--troll-reveal">
+        <TrollRevealPanel trollRevealData={trollRevealData} you={you} />
+      </div>
+    )
+  }
+
+  // ── Pick Timeout Penalty Screen ─────────────────────────────────────────
+  if (timeoutPenaltyData) {
+    return (
+      <div className="game-page game-page--troll-reveal">   {/* reuse same styling */}
+        <TimeoutPenaltyPanel
+          data={timeoutPenaltyData}
+          you={you}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="game-page game-page--active">
-      {trollBanner && (
-        <div className="troll-banner" role="alert">
-          🚫 <strong>{trollBanner.pickerName}</strong>'s image didn't match their answer — round skipped!
-        </div>
-      )}
-
       <div className="round-meta">
         Round {room.currentRound} / {room.settings.numRounds} — turn {room.turnNumberInRound} /{' '}
         {room.playersPerRound}
@@ -215,6 +255,54 @@ export default function GamePage() {
   )
 }
 
+function TrollRevealPanel({ trollRevealData, you }) {
+  const { pickerName, scoreDeltas } = trollRevealData
+
+  // Sort: picker first, then everyone else by score delta desc
+  const entries = Object.entries(scoreDeltas ?? {})
+    .map(([uuid, data]) => ({ uuid, ...data }))
+    .sort((a, b) => {
+      if (a.isPicker && !b.isPicker) return -1
+      if (!a.isPicker && b.isPicker) return 1
+      return b.delta - a.delta
+    })
+
+  return (
+    <div className="troll-reveal-panel">
+      <div className="troll-reveal-icon" aria-hidden="true">🚫</div>
+      <h2 className="troll-reveal-title">Round Skipped!</h2>
+      <p className="troll-reveal-desc">
+        <strong>{pickerName}</strong>'s image didn't match their answer.
+        They've been penalised — everyone else gets a small bonus.
+      </p>
+
+      <ul className="rso-list troll-reveal-scores">
+        {entries.map(({ uuid, name, before, after, delta, isPicker }) => (
+          <li
+            key={uuid}
+            className={[
+              'rso-row',
+              isPicker ? 'rso-row--troll' : delta > 0 ? 'rso-row--positive' : 'rso-row--zero',
+              uuid === you?.uuid ? 'rso-row--you' : '',
+            ].join(' ')}
+          >
+            <span className="rso-name">
+              {name}
+              {isPicker && <span className="rso-badge rso-badge--troll">Picker 🚫</span>}
+              {uuid === you?.uuid && !isPicker && <span className="rso-badge">You</span>}
+            </span>
+            <span className="rso-pts">
+              {delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : '±0'}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="troll-reveal-waiting">Next turn starting shortly…</p>
+    </div>
+  )
+}
+
 function RoundScoresPanel({ revealedAnswer, roundScores }) {
   const entries = Object.entries(roundScores ?? {})
     .map(([uuid, data]) => ({ uuid, ...data }))
@@ -240,6 +328,56 @@ function RoundScoresPanel({ revealedAnswer, roundScores }) {
           </li>
         ))}
       </ul>
+    </div>
+  )
+}
+
+function TimeoutPenaltyPanel({ data, you }) {
+  const { pickerName, scoreDeltas, message } = data
+
+  const entries = Object.entries(scoreDeltas ?? {})
+    .map(([uuid, deltaData]) => ({ uuid, ...deltaData }))
+    .sort((a, b) => {
+      if (a.isPicker && !b.isPicker) return -1
+      if (!a.isPicker && b.isPicker) return 1
+      return b.delta - a.delta
+    })
+
+  const isPicker = you?.uuid === data.pickerUuid
+  return (
+    <div className="troll-reveal-panel timeout-panel">
+      <div className="troll-reveal-icon" aria-hidden="true">⏰</div>
+      <h2 className="troll-reveal-title">Time's Up!</h2>
+
+      <p className="troll-reveal-desc">
+        {isPicker
+          ? "You didn't pick an image in time."
+          : (message || `${pickerName} didn't pick an image in time.`)}
+      </p>
+
+      <ul className="rso-list troll-reveal-scores">
+        {entries.map(({ uuid, name, before, after, delta, isPicker }) => (
+          <li
+            key={uuid}
+            className={[
+              'rso-row',
+              isPicker ? 'rso-row--troll' : delta > 0 ? 'rso-row--positive' : 'rso-row--zero',
+              uuid === you?.uuid ? 'rso-row--you' : '',
+            ].join(' ')}
+          >
+            <span className="rso-name">
+              {name}
+              {isPicker && <span className="rso-badge rso-badge--troll">Picker ⏰</span>}
+              {uuid === you?.uuid && !isPicker && <span className="rso-badge">You</span>}
+            </span>
+            <span className="rso-pts">
+              {delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : '±0'}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      <p className="troll-reveal-waiting">Next turn starting shortly…</p>
     </div>
   )
 }
