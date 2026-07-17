@@ -2,9 +2,11 @@ import { getRoom } from '../rooms/roomStore.js'
 import { serializeRoom, createChatState } from '../rooms/roomModel.js'
 import { shuffle } from '../utils/shuffle.js'
 import { deleteImageFile } from '../services/imageStorage.js'
+import { signPermanentImageToken } from '../services/imageToken.js'
 import { findRoomCodeForSocket, findPlayerBySocket } from './socketUtils.js'
 import { performScheduledExpansion } from './cropHandlers.js'
 import { CROP_EXPANSION } from '../config/gameDefaults.js'
+import { computeAndApplyPickerPoints, getRoundScores } from './chatHandlers.js'
 
 // Per-room phase timers (pick timer or guess timer), kept outside the
 // room object so we never try to serialize a Node Timeout.
@@ -20,6 +22,28 @@ const expansionTimers = new Map() // roomCode -> Timeout[]
 const hintTimers = new Map() // roomCode -> Timeout[]
 
 export function registerGameHandlers(io, socket) {
+  socket.on('next-turn', (_payload, callback) => {
+    if (typeof callback !== 'function') callback = () => { }
+
+    const roomCode = findRoomCodeForSocket(socket)
+    const room = roomCode && getRoom(roomCode)
+    if (!room) return callback({ ok: false, error: 'Room not found.' })
+
+    const player = findPlayerBySocket(room, socket.id)
+    if (!player || !player.isHost) {
+      return callback({ ok: false, error: 'Only the host can advance the turn.' })
+    }
+    if (room.roundPhase !== 'revealing') {
+      return callback({ ok: false, error: 'Not in revealing phase.' })
+    }
+
+    // Cancel the fallback timer (if any) and advance immediately
+    clearRoomTimer(room.code)
+    cleanupRoomImage(room)
+    startNextTurn(io, room)
+    callback({ ok: true })
+  })
+
   socket.on('start-game', (_payload, callback) => {
     if (typeof callback !== 'function') callback = () => { }
 
@@ -172,10 +196,24 @@ export function clearRoomTimer(roomCode) {
   clearHintTimers(roomCode)
 }
 
+// Clears the room's currentImage reference. Does NOT delete the file from
+// disk — gallery files need to survive until the game ends. endGame calls
+// deleteGalleryFiles() to clean up everything at once.
 export function cleanupRoomImage(room) {
+  if (room?.currentImage) {
+    room.currentImage = null
+  }
+}
+
+// Deletes every file that was saved to disk for this room (both the
+// current in-progress image, if any, and all gallery images).
+export function deleteAllRoomImages(room) {
   if (room?.currentImage?.filename) {
     deleteImageFile(room.currentImage.filename)
     room.currentImage = null
+  }
+  for (const entry of (room?.roundGallery ?? [])) {
+    if (entry.filename) deleteImageFile(entry.filename)
   }
 }
 
@@ -186,10 +224,35 @@ function finishGuessingPhase(io, roomCode) {
 
   clearExpansionTimers(roomCode)
   clearHintTimers(roomCode)
-  cleanupRoomImage(room)
-  io.to(roomCode).emit('round-reveal', serializeRoom(room))
 
-  startNextTurn(io, room)
+  // Score the picker and capture round scores before we clear state.
+  // We do this now so scores are final before we broadcast them.
+  computeAndApplyPickerPoints(room)
+  const roundScores = getRoundScores(room)
+  const revealedAnswer = room.currentAnswer
+
+  // Save this round's image + answer to the gallery before anything is cleared.
+  if (room.currentImage && revealedAnswer) {
+    const picker = room.players.get(room.pickerUuid)
+    room.roundGallery.push({
+      filename: room.currentImage.filename,  // kept for cleanup in deleteAllRoomImages
+      token: signPermanentImageToken(room.currentImage.filename),
+      answer: revealedAnswer,
+      pickerName: picker?.name ?? 'Unknown',
+    })
+  }
+
+  // Transition to 'revealing' phase so the client knows to show the full
+  // image. We keep currentImage alive so clients can render it.
+  room.roundPhase = 'revealing'
+
+  // Emit round-reveal with the full image still attached, plus scoring data.
+  // The room stays in 'revealing' until the host fires 'next-turn'.
+  io.to(roomCode).emit('round-reveal', {
+    ...serializeRoom(room),
+    roundScores,
+    revealedAnswer,
+  })
 }
 
 function startNextTurn(io, room) {
@@ -259,6 +322,27 @@ function handlePickTimeout(io, roomCode) {
   startNextTurn(io, room)
 }
 
+// Called when the CLIP check decides the picker is trolling.
+// Picker loses 10% of their score; everyone else gets +5 flat consolation.
+// Broadcasts 'troll-penalty' so the client can show a toast/banner,
+// then auto-advances the turn after 3 s so the room isn't stuck.
+export function applyTrollPenalty(io, room, pickerUuid) {
+  for (const player of room.players.values()) {
+    if (player.uuid === pickerUuid) {
+      player.score = Math.max(0, player.score - player.score * 0.05)
+    } else {
+      player.score += (player.score * 0.05)
+    }
+  }
+  io.to(room.code).emit('troll-penalty', {
+    pickerUuid,
+    ...serializeRoom(room),
+  })
+  setTimeout(() => {
+    startNextTurn(io, room)
+  }, 3000)
+}
+
 // Picker missed their window: -1% of their own score.
 // Everyone else: +1% of their own score.
 function applyPickTimeoutPenalty(room) {
@@ -276,9 +360,12 @@ function endGame(io, room) {
   room.roundPhase = null
   room.roundDeadline = null
   room.pickerUuid = null
-  cleanupRoomImage(room)
+  deleteAllRoomImages(room)
   clearRoomTimer(room.code)
   clearExpansionTimers(room.code)
   clearHintTimers(room.code)
-  io.to(room.code).emit('game-ended', serializeRoom(room))
+  io.to(room.code).emit('game-ended', {
+    ...serializeRoom(room),
+    roundGallery: room.roundGallery ?? [],
+  })
 }

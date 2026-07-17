@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRoom } from '../context/RoomContext.jsx'
 import { imageUrlFromToken } from '../utils/api.jsx'
-import { CORNERS, previewExpandedCrop } from '../utils/cropExpansionPreview,jsx'
+import { CORNERS, previewExpandedCrop } from '../utils/cropExpansionPreview,js'
 
 const DISPLAY_WIDTH = 420
 

@@ -19,7 +19,9 @@ export function verifyImageToken(token) {
     const [filename, expStr, signature] = parts
 
     const exp = Number(expStr)
-    if (!filename || !exp || Date.now() > exp) return null
+    if (!filename || Number.isNaN(exp)) return null
+    // exp === 0 means "no expiry" (permanent gallery token); otherwise enforce TTL
+    if (exp !== 0 && Date.now() > exp) return null
 
     const expectedSignature = createHmac('sha256', SECRET)
       .update(`${filename}|${exp}`)
@@ -35,4 +37,15 @@ export function verifyImageToken(token) {
   } catch {
     return null
   }
+}
+
+// Signs a token with no expiry (TTL = 0 means "never" — we skip the
+// expiry check). Used for gallery images that need to survive past the
+// round's 10-minute window.
+export function signPermanentImageToken(filename) {
+  // exp = 0 signals "no expiry" to verifyImageToken
+  const exp = 0
+  const payload = `${filename}|${exp}`
+  const signature = createHmac('sha256', SECRET).update(payload).digest('hex')
+  return Buffer.from(`${payload}|${signature}`).toString('base64url')
 }

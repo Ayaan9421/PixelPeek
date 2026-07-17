@@ -5,8 +5,9 @@ import { existsSync } from 'node:fs'
 import { getRoom } from '../rooms/roomStore.js'
 import { buildImageFilename, saveImageBuffer, imagePath, deleteImageFile } from '../services/imageStorage.js'
 import { signImageToken, verifyImageToken } from '../services/imageToken.js'
-import { handleImageLocked } from '../sockets/gameHandlers.js'
+import { handleImageLocked, applyTrollPenalty } from '../sockets/gameHandlers.js'
 import { IMAGE_LIMITS } from '../config/gameDefaults.js'
+import { checkImageAnswerRelevance } from '../services/clipCheck.js'
 
 const router = Router()
 
@@ -20,7 +21,7 @@ const upload = multer({
   },
 })
 
-router.post('/upload-image', upload.single('image'), (req, res) => {
+router.post('/upload-image', upload.single('image'), async (req, res) => {
   const io = req.app.get('io')
   const { roomCode, playerUuid, cropX, cropY, cropWidth, cropHeight, naturalWidth, naturalHeight, answer } = req.body
 
@@ -77,6 +78,28 @@ router.post('/upload-image', upload.single('image'), (req, res) => {
   })
 
   saveImageBuffer(filename, req.file.buffer)
+
+  // ── AI relevance check (CLIP) ──────────────────────────────────────────
+  // Only runs when the host has enabled it in room settings.
+  if (room.settings.enableClipCheck) {
+    try {
+      const relevant = await checkImageAnswerRelevance(filename, trimmedAnswer)
+      if (!relevant) {
+        deleteImageFile(filename)
+        // Penalise the troll picker and tell everyone what happened.
+        applyTrollPenalty(io, room, pickerUuid)
+        return res.status(422).json({
+          ok: false,
+          error: 'Your image and answer don\'t seem to match. Round skipped.',
+          trollPenalty: true,
+        })
+      }
+    } catch (clipErr) {
+      // If the model errors (e.g. first cold load), log and continue —
+      // don't block the game on a model hiccup.
+      console.error('[CLIP] check failed, skipping:', clipErr.message)
+    }
+  }
 
   room.currentAnswer = trimmedAnswer
 

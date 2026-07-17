@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRoom } from "../context/RoomContext.jsx";
 import { validateImageFile } from "../utils/ImageValidations.jsx";
 import { uploadPickedImage } from "../utils/api.jsx";
+import { checkNsfw, warmUpNsfw } from "../utils/nsfwCheck.js";
 
 const DISPLAY_WIDTH = 420
 
@@ -17,6 +18,7 @@ export default function CropSelector() {
   const [fileError, setFileError] = useState(null)
   const [uploadError, setUploadError] = useState(null)
   const [uploading, setUploading] = useState(false)
+  const [nsfwChecking, setNsfwChecking] = useState(false)
   const containerRef = useRef(null)
 
   const handleFile = useCallback((candidate) => {
@@ -34,6 +36,15 @@ export default function CropSelector() {
       return URL.createObjectURL(candidate)
     })
   }, [])
+
+  // Pre-load the NSFW model as soon as this component mounts (i.e. the
+  // moment it's the picker's turn) so the model is ready by the time
+  // they hit Lock Crop. Fire-and-forget — errors are non-fatal.
+  useEffect(() => {
+    if (room?.settings?.enableNsfwCheck) {
+      warmUpNsfw().catch((err) => console.warn('[NSFW] Warm-up failed:', err))
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     function onPaste(e) {
@@ -125,9 +136,25 @@ export default function CropSelector() {
       height: selection.height * scale,
     }
 
+    // ── NSFW check (client-side, only when room setting is on) ────────────
+    if (room.settings.enableNsfwCheck) {
+      setNsfwChecking(true)
+      try {
+        const isNsfw = await checkNsfw(file)
+        if (isNsfw) {
+          setUploadError('Image flagged as inappropriate. Please choose a different one.')
+          setNsfwChecking(false)
+          return
+        }
+      } catch (nsfwErr) {
+        // Model load failure shouldn't block the game — log and continue.
+        console.warn('[NSFW] check failed, skipping:', nsfwErr)
+      }
+      setNsfwChecking(false)
+    }
+
     setUploading(true)
     try {
-      console.log('hi')
       await uploadPickedImage({
         roomCode: room.code,
         playerUuid: you.uuid,
@@ -203,8 +230,8 @@ export default function CropSelector() {
               Choose a different image
               <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onBrowse} hidden />
             </label>
-            <button type="button" onClick={handleLockCrop} disabled={uploading}>
-              {uploading ? 'Locking in…' : 'Lock Crop'}
+            <button type="button" onClick={handleLockCrop} disabled={uploading || nsfwChecking}>
+              {nsfwChecking ? 'Checking image…' : uploading ? 'Locking in…' : 'Lock Crop'}
             </button>
           </div>
         </>

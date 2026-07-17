@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useRoom } from '../context/RoomContext.jsx'
-import { SETTINGS_LIMITS } from '../utils/settingsLimits.js'
+import { SETTINGS_LIMITS, BOOLEAN_SETTINGS } from '../utils/settingsLimits.js'
 
 export default function LobbyPage() {
   const { room, you, isHost, leaveRoom, startGame, updateSettings, updateName } = useRoom()
@@ -31,6 +31,11 @@ export default function LobbyPage() {
 
   function handleSettingChange(key, value) {
     setSettingsDraft((prev) => ({ ...prev, [key]: Number(value) }))
+    setSettingsSaved(false)
+  }
+
+  function handleBooleanSettingChange(key, checked) {
+    setSettingsDraft((prev) => ({ ...prev, [key]: checked }))
     setSettingsSaved(false)
   }
 
@@ -89,6 +94,19 @@ export default function LobbyPage() {
               </label>
             ))}
           </div>
+          <div className="settings-toggles">
+            {Object.entries(BOOLEAN_SETTINGS).map(([key, { label }]) => (
+              <label key={key} className="settings-toggle-label">
+                <input
+                  type="checkbox"
+                  checked={settingsDraft?.[key] ?? true}
+                  onChange={(e) => handleBooleanSettingChange(key, e.target.checked)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+
           <button type="button" onClick={handleSaveSettings} className="save-settings-btn">
             Save settings
           </button>
@@ -102,6 +120,7 @@ export default function LobbyPage() {
           <span>Guess time: {room.settings.guessTimeSec}s</span>
           <span>Pick time: {room.settings.pickTimeSec}s</span>
           <span>Hints: {room.settings.numHints}</span>
+          <span>Reveal Image Time: {room.settings.revealImageSec} </span>
         </div>
       )}
 

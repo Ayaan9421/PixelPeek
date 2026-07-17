@@ -29,6 +29,9 @@ export function createRoomState({ code, hostUuid, settings }) {
                 createdAt: Date.now(),
                 currentAnswer: null,
                 chatState: createChatState(),
+                // Accumulates { token, answer, pickerName } for each completed round.
+                // Sent to clients only on game-ended so it doesn't bloat mid-game syncs.
+                roundGallery: [],
                 // Each entry: { charIndex: number, letter: string }
                 // charIndex is a flat index into the full answer string (spaces included).
                 // Client can use answerPattern to reconstruct word/letter positions.
@@ -38,8 +41,8 @@ export function createRoomState({ code, hostUuid, settings }) {
 
 export function createChatState() {
         return {
-                // answerRevealed: false,
                 correctGuessers: new Set(),
+                roundScores: {}, // { [uuid]: { name, pts, isPicker? } }
         }
 }
 

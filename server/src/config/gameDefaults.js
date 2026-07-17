@@ -3,7 +3,15 @@ export const SETTINGS_LIMITS = {
         guessTimeSec: { min: 30, max: 180, default: 90 },
         pickTimeSec: { min: 10, max: 60, default: 20 },
         numRounds: { min: 1, max: 30, default: 3 },
-        numHints: { min: 0, max: 5, default: 3 }
+        numHints: { min: 0, max: 5, default: 3 },
+        revealImageSec: { min: 3, max: 10, default: 4 }
+}
+
+// Boolean toggles — not in SETTINGS_LIMITS (which handles numeric ranges)
+// but normalised alongside them.
+export const BOOLEAN_SETTINGS = {
+        enableNsfwCheck: { default: true },
+        enableClipCheck: { default: true },
 }
 
 export function clamp(value, min, max) {
@@ -16,6 +24,10 @@ export function normalizeSettings(rawSettings = {}) {
                 const raw = rawSettings[key]
                 const num = typeof raw === 'number' && !Number.isNaN(raw) ? raw : def
                 normalized[key] = clamp(Math.round(num), min, max)
+        }
+        // Boolean settings
+        for (const [key, { default: def }] of Object.entries(BOOLEAN_SETTINGS)) {
+                normalized[key] = typeof rawSettings[key] === 'boolean' ? rawSettings[key] : def
         }
         return normalized
 }

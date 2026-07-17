@@ -3,7 +3,7 @@ import { createRoom, getRoom, deleteRoom, hasRoom } from '../rooms/roomStore.js'
 import { createRoomState, createPlayer, serializeRoom } from '../rooms/roomModel.js'
 import { generateUniqueRoomCode } from '../utils/roomCode.js'
 import { normalizeSettings, RECONNECT_GRACE_MS } from '../config/gameDefaults.js'
-import { clearRoomTimer, cleanupRoomImage, clearExpansionTimers, clearHintTimers } from './gameHandlers.js'
+import { clearRoomTimer, cleanupRoomImage, deleteAllRoomImages, clearExpansionTimers, clearHintTimers } from './gameHandlers.js'
 import { findRoomCodeForSocket, findPlayerBySocket } from './socketUtils.js'
 
 const socketToRoom = new Map()
@@ -186,7 +186,7 @@ function cleanupOrBroadcast(io, room) {
                 clearRoomTimer(room.code)
                 clearExpansionTimers(room.code)
                 clearHintTimers(room.code)
-                cleanupRoomImage(room)
+                deleteAllRoomImages(room)
                 deleteRoom(room.code)
                 return
         }
