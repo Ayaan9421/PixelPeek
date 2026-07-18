@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useState } from 'rea
 import { socket, connectSocket } from '../sockets/socket.js'
 import { getStoredIdentity, saveIdentity, clearIdentity } from '../utils/storage.js'
 import { playSound, preloadSounds } from '../utils/sounds.js'
+import { SETTINGS_LIMITS } from '../utils/settingsLimits.js'
 
 const RoomContext = createContext(null)
 
@@ -161,10 +162,13 @@ export function RoomProvider({ children }) {
     }
   }, [])
 
-  const createRoom = useCallback((playerName, settings) => {
+  const createRoom = useCallback((playerName) => {
+    const DEFAULT_SETTINGS = Object.fromEntries(
+      Object.entries(SETTINGS_LIMITS).map(([key, { default: def }]) => [key, def])
+    )
     setError(null)
     setConnecting(true)
-    socket.emit('create-room', { playerName, settings }, (res) => {
+    socket.emit('create-room', { playerName, DEFAULT_SETTINGS }, (res) => {
       setConnecting(false)
       if (!res.ok) { setError(res.error); return }
       setRoom(res.room)

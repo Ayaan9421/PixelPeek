@@ -123,13 +123,9 @@ export default function HomePage() {
   const [playerName, setPlayerName] = useState('')
   const [roomCode, setRoomCode] = useState('')
 
-  function updateSetting(key, value) {
-    setSettings((prev) => ({ ...prev, [key]: Number(value) }))
-  }
-
   function handleCreate(e) {
     e.preventDefault()
-    createRoom(playerName, settings)
+    createRoom(playerName)
   }
 
   function handleJoin(e) {
