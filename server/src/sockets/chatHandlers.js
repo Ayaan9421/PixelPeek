@@ -1,5 +1,6 @@
 import { getRoom } from '../rooms/roomStore.js'
 import { findRoomCodeForSocket, findPlayerBySocket } from './socketUtils.js'
+import { finishGuessingPhaseEarly } from './gameHandlers.js'
 
 const CHAT_MAX_LEN = 200
 
@@ -24,7 +25,7 @@ export function registerChatHandlers(io, socket) {
     const isPicker = room.pickerUuid === player.uuid
     const alreadySolved = !isPicker && room.chatState.correctGuessers.has(player.uuid)
 
-    const entry = buildChatEntry(room, player, trimmed, isPicker, alreadySolved)
+    const entry = buildChatEntry(room, player, trimmed, isPicker, alreadySolved, io)
 
     // If this was a correct guess, score the player and emit player-guessed
     if (entry.type === 'correct-guess') {
@@ -38,11 +39,29 @@ export function registerChatHandlers(io, socket) {
       io.to(room.code).emit('player-guessed', {
         playerUuid: player.uuid,
       })
+
+      if (checkIfAllGuessed(room)) {
+        console.log(`All guessers got it right in room ${room.code} — ending round early`);
+        // Import at the top and call:
+        finishGuessingPhaseEarly(io, room.code)
+      }
     }
 
     broadcastChatEntry(io, room, entry, alreadySolved)
     callback({ ok: true })
   })
+}
+
+function checkIfAllGuessed(room) {
+  if (!room.currentAnswer) return false
+
+  const activePlayers = Array.from(room.players.values())
+    .filter(p => p.connected && p.uuid !== room.pickerUuid) // ← exclude picker
+
+  // If there are no other players (edge case), don't trigger early end
+  if (activePlayers.length === 0) return false
+
+  return activePlayers.every(p => room.chatState.correctGuessers.has(p.uuid))
 }
 
 // Compute points for a correct guess based on time, reveal, hints, and rank.
@@ -77,10 +96,33 @@ function computeGuesserPoints(room) {
 }
 
 // Compute picker points after the round ends (called by gameHandlers)
+// export function computeAndApplyPickerPoints(room) {
+//   const scores = room.chatState.roundScores ?? {}
+//   const roundPts = Object.values(scores).map(s => s.pts)
+//   const totalGuessers = room.players.size - 1  // everyone except picker
+//   const correctGuessers = room.chatState.correctGuessers.size
+
+//   const avgPts = roundPts.length > 0
+//     ? roundPts.reduce((a, b) => a + b, 0) / roundPts.length
+//     : 0
+//   const participationBonus = totalGuessers > 0
+//     ? (correctGuessers / totalGuessers) * 20
+//     : 0
+
+//   const pickerPts = Math.round(avgPts + participationBonus)
+
+//   const picker = room.players.get(room.pickerUuid)
+//   if (picker) {
+//     picker.score += pickerPts
+//     if (!room.chatState.roundScores) room.chatState.roundScores = {}
+//     room.chatState.roundScores[picker.uuid] = { name: picker.name, pts: pickerPts, isPicker: true }
+//   }
+// }
+
 export function computeAndApplyPickerPoints(room) {
   const scores = room.chatState.roundScores ?? {}
-  const roundPts = Object.values(scores).map(s => s.pts)
-  const totalGuessers = room.players.size - 1  // everyone except picker
+  const roundPts = Object.values(scores).map(s => s.pts || 0)
+  const totalGuessers = room.players.size - 1
   const correctGuessers = room.chatState.correctGuessers.size
 
   const avgPts = roundPts.length > 0
@@ -95,8 +137,14 @@ export function computeAndApplyPickerPoints(room) {
   const picker = room.players.get(room.pickerUuid)
   if (picker) {
     picker.score += pickerPts
+
     if (!room.chatState.roundScores) room.chatState.roundScores = {}
-    room.chatState.roundScores[picker.uuid] = { name: picker.name, pts: pickerPts, isPicker: true }
+
+    room.chatState.roundScores[picker.uuid] = {
+      name: picker.name,
+      pts: pickerPts,
+      isPicker: true
+    }
   }
 }
 
@@ -105,7 +153,7 @@ export function getRoundScores(room) {
   return room.chatState.roundScores ?? {}
 }
 
-function buildChatEntry(room, player, text, isPicker, alreadySolved) {
+function buildChatEntry(room, player, text, isPicker, alreadySolved, io) {
   const base = {
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     ts: Date.now(),
@@ -129,6 +177,7 @@ function buildChatEntry(room, player, text, isPicker, alreadySolved) {
   }
 
   room.chatState.correctGuessers.add(player.uuid)
+
   return { ...base, type: 'correct-guess', text: `${player.name} guessed the word!` }
 }
 

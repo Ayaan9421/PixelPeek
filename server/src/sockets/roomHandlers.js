@@ -61,7 +61,10 @@ export function registerRoomHandlers(io, socket) {
 
                         socket.join(code)
                         socketToRoom.set(socket.id, { roomCode: code, uuid })
-
+                        io.to(code).emit('player-joined', {
+                                playerName: existing.name,
+                                uuid
+                        });
                         io.to(code).emit('room-updated', serializeRoom(room))
                         return callback({ ok: true, room: serializeRoom(room), you: { uuid }, reconnected: true })
                 }
@@ -80,7 +83,10 @@ export function registerRoomHandlers(io, socket) {
 
                 socket.join(code)
                 socketToRoom.set(socket.id, { roomCode: code, uuid: newUuid })
-
+                io.to(code).emit('player-joined', {
+                        playerName: player.name,
+                        uuid: newUuid
+                });
                 io.to(code).emit('room-updated', serializeRoom(room))
                 callback({ ok: true, room: serializeRoom(room), you: { uuid: newUuid } })
         })
@@ -153,6 +159,10 @@ function handleDeparture(io, socket, { immediate }) {
                 room.players.delete(uuid)
                 promoteHostIfNeeded(room)
                 cleanupOrBroadcast(io, room)
+                io.to(roomCode).emit('player-left', {
+                        playerName: player.name,
+                        uuid
+                });
                 return
         }
 
@@ -169,6 +179,10 @@ function handleDeparture(io, socket, { immediate }) {
                 }
         }, RECONNECT_GRACE_MS)
 
+        io.to(roomCode).emit('player-left', {
+                playerName: player.name,
+                uuid
+        });
         io.to(roomCode).emit('room-updated', serializeRoom(room))
 }
 

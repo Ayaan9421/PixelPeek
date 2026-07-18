@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
 import { socket, connectSocket } from '../sockets/socket.js'
 import { getStoredIdentity, saveIdentity, clearIdentity } from '../utils/storage.js'
+import { playSound, preloadSounds } from '../utils/sounds.js'
 
 const RoomContext = createContext(null)
 
@@ -24,7 +25,7 @@ export function RoomProvider({ children }) {
 
   useEffect(() => {
     connectSocket()
-
+    preloadSounds()
     function onRoomUpdated(data) {
       setRoom(data)
     }
@@ -45,6 +46,7 @@ export function RoomProvider({ children }) {
       setTrollBanner(null)
       setTimeoutPenaltyData(null)
       setRoom(data)
+      playSound('start')
     }
 
     function onTrollPenalty(data) {
@@ -58,6 +60,7 @@ export function RoomProvider({ children }) {
         scoreDeltas: data.scoreDeltas ?? {},
       })
       setRoom(data)
+      playSound('penalty')
     }
 
     function onRoundReveal(data) {
@@ -66,7 +69,7 @@ export function RoomProvider({ children }) {
         revealedAnswer: data.revealedAnswer ?? null,
       })
       setRoom(data)
-      // Keep frozenScores in place during revealing — scores still hidden
+      playSound('complete')
     }
 
     function onHintRevealed(hint) {
@@ -78,6 +81,7 @@ export function RoomProvider({ children }) {
 
     function onPlayerGuessed({ playerUuid }) {
       setCorrectGuessers((prev) => new Set([...prev, playerUuid]))
+      playSound('correct')
     }
 
     function onGameEnded(data) {
@@ -86,6 +90,7 @@ export function RoomProvider({ children }) {
       setCorrectGuessers(new Set())
       setFrozenScores(null)
       setRoom(data)
+      playSound('complete')
     }
 
     function onGameRestarted(data) {
@@ -96,6 +101,7 @@ export function RoomProvider({ children }) {
       setFrozenScores(null)
       setTrollBanner(null)
       setRoom(data.room)
+      playSound('start')
     }
 
     function onRoomClosed() {
@@ -108,6 +114,17 @@ export function RoomProvider({ children }) {
     function onPickTimeoutPenalty(data) {
       setTrollRevealData(null) // clear any previous troll screen
       setTimeoutPenaltyData(data) // ← new state
+      playSound('penalty')
+    }
+
+    function onPlayerJoined(data) {
+      playSound('join')
+      // Optional: show a small toast "X joined the room"
+    }
+
+    function onPlayerLeft(data) {
+      playSound('leave')
+      // Optional: show "X left the room"
     }
 
     socket.on('room-updated', onRoomUpdated)
@@ -123,7 +140,8 @@ export function RoomProvider({ children }) {
     socket.on('player-guessed', onPlayerGuessed)
     socket.on('troll-penalty', onTrollPenalty)
     socket.on('pick-timeout-penalty', onPickTimeoutPenalty)
-
+    socket.on('player-joined', onPlayerJoined)
+    socket.on('player-left', onPlayerLeft)
     return () => {
       socket.off('room-updated', onRoomUpdated)
       socket.off('round-started', onRoundStarted)
@@ -138,6 +156,8 @@ export function RoomProvider({ children }) {
       socket.off('player-guessed', onPlayerGuessed)
       socket.off('troll-penalty', onTrollPenalty)
       socket.off('pick-timeout-penalty', onPickTimeoutPenalty)
+      socket.off('player-joined', onPlayerJoined)
+      socket.off('player-left', onPlayerLeft)
     }
   }, [])
 

@@ -192,10 +192,17 @@ export function clearExpansionTimers(roomCode) {
 function scheduleHints(io, room) {
   clearHintTimers(room.code)
 
-  const numHints = room.settings.numHints ?? 0
-  if (numHints <= 0 || !room.currentAnswer) return
-
+  const settingsNumHints = room.settings.numHints ?? 4
   const answer = room.currentAnswer
+
+  if (!answer || settingsNumHints <= 0) return
+
+  // Dynamic limit: don't reveal everything
+  const maxSafeHints = Math.max(0, answer.length - 3) // leave at least 3 letters hidden
+  const numHints = Math.min(settingsNumHints, maxSafeHints)
+
+  if (numHints <= 0) return
+
   const guessTimeMs = room.settings.guessTimeSec * 1000
   const intervalMs = guessTimeMs / (numHints + 1)
 
@@ -287,6 +294,18 @@ function finishGuessingPhase(io, roomCode) {
   // We do this now so scores are final before we broadcast them.
   computeAndApplyPickerPoints(room)
   const roundScores = getRoundScores(room)
+
+  // Ensure every player appears in the scoreboard
+  for (const player of room.players.values()) {
+    if (!roundScores[player.uuid]) {
+      roundScores[player.uuid] = {
+        name: player.name,
+        pts: 0,
+        isPicker: player.uuid === room.pickerUuid,
+      }
+    }
+  }
+
   const revealedAnswer = room.currentAnswer
 
   // Save this round's image + answer to the gallery before anything is cleared.
@@ -313,6 +332,53 @@ function finishGuessingPhase(io, roomCode) {
   })
 }
 
+// Add this function in gameHandlers.js
+export function finishGuessingPhaseEarly(io, roomCode) {
+  const room = getRoom(roomCode)
+  if (!room || room.roundPhase !== 'guessing') return
+
+  clearExpansionTimers(roomCode)
+  clearHintTimers(roomCode)
+
+  const guesserScores = room.chatState.roundScores ?? {}
+  // IMPORTANT: Make sure all guesser scores are recorded first
+  // Then compute picker points
+  computeAndApplyPickerPoints(room)
+
+  const roundScores = getRoundScores(room)
+  // Fallback: ensure every player has an entry
+  for (const player of room.players.values()) {
+    if (!roundScores[player.uuid]) {
+      roundScores[player.uuid] = {
+        name: player.name,
+        pts: 0,
+        isPicker: player.uuid === room.pickerUuid
+      }
+    }
+  }
+
+  const revealedAnswer = room.currentAnswer
+
+  // Save to gallery
+  if (room.currentImage && revealedAnswer) {
+    const picker = room.players.get(room.pickerUuid)
+    room.roundGallery.push({
+      filename: room.currentImage.filename,
+      token: signPermanentImageToken(room.currentImage.filename),
+      answer: revealedAnswer,
+      pickerName: picker?.name ?? 'Unknown',
+    })
+  }
+
+  room.roundPhase = 'revealing'
+
+  io.to(roomCode).emit('round-reveal', {
+    ...serializeRoom(room),
+    roundScores,
+    revealedAnswer,
+  })
+}
+
 function startNextTurn(io, room) {
   const nextPickerUuid = advancePicker(room)
 
@@ -325,12 +391,12 @@ function startNextTurn(io, room) {
   room.roundPhase = 'picking'
   room.roundDeadline = Date.now() + room.settings.pickTimeSec * 1000
   room.currentAnswer = null
-  room.chatState = createChatState()
+  // room.chatState = createChatState()
   room.revealedHints = []
   cleanupRoomImage(room)
 
   io.to(room.code).emit('round-started', serializeRoom(room))
-  io.to(room.code).emit('chat-cleared')
+  // io.to(room.code).emit('chat-cleared')
 
   clearRoomTimer(room.code)
   clearExpansionTimers(room.code)
