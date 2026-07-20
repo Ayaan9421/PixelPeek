@@ -1,6 +1,6 @@
 import { imageUrlFromToken } from '../utils/api.jsx'
 
-const DISPLAY_WIDTH = 420
+const DISPLAY_WIDTH = 520
 
 export default function FullImageView({ currentImage }) {
   if (!currentImage) return null

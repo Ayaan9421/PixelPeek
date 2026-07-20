@@ -133,19 +133,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRoom } from '../context/RoomContext.jsx'
 import { SETTINGS_LIMITS, BOOLEAN_SETTINGS } from '../utils/settingsLimits.js'
 import ChatPanel from '../components/ChatPanel.jsx'
+import { avatarForUuid } from '../utils/avatarSelection.js'
 import '../styles/LobbyPage.css'
-
-const AVATAR_COUNT = 20
-
-// Deterministic "random" avatar per player so it stays put across re-renders
-// but still looks shuffled between players.
-function avatarForUuid(uuid) {
-  let hash = 0
-  for (let i = 0; i < uuid.length; i++) {
-    hash = (hash * 31 + uuid.charCodeAt(i)) >>> 0
-  }
-  return (hash % AVATAR_COUNT) + 1
-}
 
 export default function LobbyPage() {
   const { room, you, isHost, leaveRoom, startGame, updateSettings, updateName } = useRoom()
@@ -293,7 +282,7 @@ export default function LobbyPage() {
             <button
               type="button"
               className="accordion-header"
-              onClick={() => setOpenPanel('settings')}
+              onClick={() => setOpenPanel((prev) => (prev === 'settings' ? 'chat' : 'settings'))}
             >
               <h3>Game Settings</h3>
               <Chevron open={openPanel === 'settings'} />
@@ -374,7 +363,7 @@ export default function LobbyPage() {
           </section>
 
           <section className={`lobby-panel accordion${openPanel === 'chat' ? ' is-open' : ''}`}>
-            <button type="button" className="accordion-header" onClick={() => setOpenPanel('chat')}>
+            <button type="button" className="accordion-header" onClick={() => setOpenPanel((prev) => (prev === 'settings' ? 'chat' : 'settings'))}>
               <h3>Lobby Chat</h3>
               <Chevron open={openPanel === 'chat'} />
             </button>

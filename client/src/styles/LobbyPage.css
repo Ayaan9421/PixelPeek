@@ -22,28 +22,28 @@
 .lobby-title {
   margin: 0;
   text-align: center;
-  font-size: clamp(2rem, 4.5vw, 3.3rem);
+  font-size: clamp(2rem, 4.5vw, 4rem);
   font-weight: 800;
   color: #ffffff;
-  -webkit-text-stroke: 3px #14141a;
+  -webkit-text-stroke: 8px #14141a;
   paint-order: stroke fill;
   letter-spacing: 0.5px;
 }
 
 .room-code {
   color: #ffffff;
-  -webkit-text-stroke: 3px #14141a;
+  -webkit-text-stroke: 8px #14141a;
 }
 
 .leave-btn {
   position: absolute;
-  right: 0;
+  right: 20%;
   top: 50%;
   transform: translateY(-50%);
   cursor: pointer;
   font-family: inherit;
   font-weight: 800;
-  font-size: 0.95rem;
+  font-size: 1.5rem;
   color: #ffffff;
   background: #ff2f7e;
   border: 3px solid #14141a;
@@ -51,6 +51,8 @@
   padding: 8px 18px;
   box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.9);
   transition: transform 0.08s ease, box-shadow 0.08s ease;
+  -webkit-text-stroke: 5px #14141a;
+  paint-order: stroke fill;
 }
 
 .leave-btn:hover {
@@ -64,10 +66,12 @@
 
 .lobby-hint {
   margin: 4px 0 26px;
-  font-weight: 600;
-  font-size: 0.95rem;
-  color: #3a3768;
+  font-weight: 800;
+  font-size: 2rem;
+  color: #ffffff;
   text-align: center;
+  -webkit-text-stroke: 5px #14141a;
+  paint-order: stroke fill;
 }
 
 /* ---------- Layout ---------- */
@@ -107,7 +111,7 @@
 
 .panel-header h3 {
   margin: 0;
-  font-size: 1.7rem;
+  font-size: 2rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -257,7 +261,7 @@
 
 .status-label {
   font-weight: 800;
-  font-size: 0.85rem;
+  font-size: 1.2rem;
   text-transform: uppercase;
   color: #14141a;
 }
@@ -346,7 +350,7 @@
 
 .accordion-header h3 {
   margin: 0;
-  font-size: 1.6rem;
+  font-size: 2rem;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -415,6 +419,7 @@
   display: flex;
   flex-direction: column;
   height: 100%;
+  justify-content: space-between;
 }
 
 .settings-row {
@@ -422,6 +427,7 @@
   grid-template-columns: 2.5fr 3fr;
   column-gap: 36px;
   row-gap: 18px;
+  font-size: 1.4rem;
 }
 
 .settings-select {
@@ -544,6 +550,7 @@
   font-weight: 600;
   color: #6b68a0;
   text-align: center;
+  font-size: 1.2rem;
 }
 
 .summary-item {

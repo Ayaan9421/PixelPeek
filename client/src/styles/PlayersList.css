@@ -1,0 +1,124 @@
+.players-card {
+  background: #ffffff;
+  border: 4px solid #14141a;
+  border-radius: 22px;
+  box-shadow: 7px 7px 0 rgba(0, 0, 0, 0.9);
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.players-card-heading {
+  margin: 0 0 16px;
+  font-size: 1.5rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #3a3944;
+}
+
+.players-pane-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.players-pane-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+}
+
+.players-pane-row.disconnected {
+  opacity: 0.5;
+}
+
+.avatar-wrap {
+  position: relative;
+  flex-shrink: 0;
+  width: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.player-avatar {
+  width: 110px;
+  height: auto;
+  display: block;
+  object-fit: contain;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.you-dot {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+
+  width: 16px;
+  height: 16px;
+
+  background: #34d972;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+
+  box-shadow: 0 0 0 2px #14141a;
+}
+
+.player-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 1.8rem;
+  color: #14141a;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+  padding-left: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.players-pane-row.you .player-name {
+  color: #14141a;
+}
+
+.badge {
+  flex-shrink: 0;
+  white-space: nowrap;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  border: 2px solid #14141a;
+}
+
+.picker-badge {
+  background: #ffd23f;
+  color: #14141a;
+}
+
+.guessed-badge {
+  background: #34d972;
+  color: #14141a;
+  padding: 3px 7px;
+}
+
+.player-score {
+  flex-shrink: 0;
+  font-weight: 800;
+  font-size: 1.8rem;
+  color: #35333d;
+  min-width: 28px;
+  text-align: right;
+}

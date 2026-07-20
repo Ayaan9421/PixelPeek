@@ -1,0 +1,233 @@
+.crop-selector {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  width: 100%;
+}
+
+/* ---------- Image card ---------- */
+
+.image-card {
+  position: relative;
+  background: #fdfdfb;
+  border: 4px solid #14141a;
+  border-radius: 28px;
+  box-shadow: 9px 9px 0 rgba(0, 0, 0, 0.9);
+  padding: 46px;
+  min-height: 420px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+/* ---------- Dropzone ---------- */
+
+.drop-zone {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  padding: 64px 36px;
+
+  border: 3px dashed #14141a;
+  border-radius: 22px;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease, transform 0.08s ease;
+}
+
+.drop-zone:hover {
+  background: #f6f5ff;
+}
+
+.upload-icon {
+  flex-shrink: 0;
+}
+
+.drop-zone-text {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #14141a;
+  line-height: 1.4;
+}
+
+.browse-word {
+  color: #5b57a6;
+  text-decoration: underline;
+}
+
+/* ---------- Crop frame (image selected) ---------- */
+
+.change-image-link {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: #5b57a6;
+  text-decoration: underline;
+}
+
+.crop-frame {
+  position: relative;
+  overflow: hidden;
+  border: 3px solid #14141a;
+  border-radius: 16px;
+  cursor: crosshair;
+  user-select: none;
+  background: #000;
+  z-index: 10;
+}
+
+.crop-source-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;
+}
+
+.crop-rect {
+  position: absolute;
+  border: 3px dashed #ff2f7e;
+  background: rgba(255, 47, 126, 0.22);
+  pointer-events: none;
+}
+
+.crop-hint {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1.2rem;
+  color: #6b68a0;
+  text-align: center;
+}
+
+/* ---------- Answer row ---------- */
+
+.answer-row {
+  display: flex;
+  align-items: stretch;
+  gap: 20px;
+}
+
+.answer-box {
+  flex: 1;
+  min-width: 0;
+  background: #fdfdfb;
+  border: 4px solid #14141a;
+  border-radius: 20px;
+  padding: 18px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.9);
+}
+
+.answer-label {
+  font-weight: 800;
+  font-size: 1.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #14141a;
+}
+
+.answer-input {
+  border: none;
+  background: transparent;
+  outline: none;
+  font-family: inherit;
+  font-size: 2rem;
+  font-weight: 800;
+  letter-spacing: 4px;
+  padding: 6px 2px;
+  color: #14141a;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.answer-input::placeholder {
+  color: #c7c5dd;
+  letter-spacing: 6px;
+}
+
+/* ---------- Lock button ---------- */
+
+.lock-btn {
+  flex-shrink: 0;
+  min-width: 220px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 2.1rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #ffffff;
+  -webkit-text-stroke: 5px #14141a;
+  paint-order: stroke fill;
+
+  background: #ff2f7e;
+  border: 4px solid #14141a;
+  border-radius: 18px;
+  padding: 10px 18px;
+
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.9);
+  transition: transform 0.08s ease, box-shadow 0.08s ease, filter 0.15s ease, background 0.15s ease;
+}
+
+.lock-btn:hover:not(:disabled) {
+  filter: brightness(1.05);
+}
+
+.lock-btn:active:not(:disabled) {
+  transform: translate(4px, 4px);
+  box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.9);
+}
+
+.lock-btn:disabled {
+  cursor: not-allowed;
+  background: #d99aa8;
+  color: #f3dde2;
+  -webkit-text-stroke: 5px rgba(0, 0, 0, 0.35);
+  paint-order: stroke fill;
+  box-shadow: 6px 6px 0 rgba(0, 0, 0, 0.35);
+}
+
+/* ---------- Error text ---------- */
+
+.error-text {
+  margin: 0;
+  padding: 10px 14px;
+  background: #ffe1e8;
+  border: 2px solid #ff2f7e;
+  border-radius: 12px;
+  color: #b3105a;
+  font-weight: 700;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+/* ---------- Responsive ---------- */
+
+@media (max-width: 640px) {
+  .image-card {
+    padding: 28px 20px;
+  }
+
+  .drop-zone {
+    padding: 44px 20px;
+  }
+
+  .answer-row {
+    flex-direction: column;
+  }
+
+  .lock-btn {
+    min-width: 0;
+  }
+}

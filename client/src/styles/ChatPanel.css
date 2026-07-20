@@ -30,7 +30,7 @@
 }
 
 .chat-message {
-  font-size: 0.98rem;
+  font-size: 1.2rem;
   font-weight: 600;
   color: #14141a;
   line-height: 1.4;
@@ -55,6 +55,7 @@
   padding: 6px 12px;
   font-weight: 800;
   color: #147a3c;
+  width: 100%;
 }
 
 .chat-input-row {
@@ -68,7 +69,7 @@
   flex: 1;
   min-width: 0;
   font-family: inherit;
-  font-size: 1rem;
+  font-size: 1.4rem;
   font-weight: 600;
   color: #1c1c24;
   background: #ffffff;
@@ -85,11 +86,11 @@
 
 .chat-send-btn {
   flex-shrink: 0;
-  width: 52px;
-  height: 52px;
+  width: 65px;
+  height: 65px;
   margin-right: 3px;
   cursor: pointer;
-  font-size: 1.2rem;
+  font-size: 1.4rem;
 
   color: #fff;
   background: #28c7f6;
