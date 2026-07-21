@@ -1,0 +1,18 @@
+services:
+  app:
+    image: ghcr.io/ayaan9421/pixel-peek-server:latest
+    container_name: pixel-peek-server
+
+    ports:
+      - "4000:4000"
+
+    env_file:
+      - .env
+
+    restart: unless-stopped
+
+    volumes:
+      - clip-cache:/root/.cache
+
+volumes:
+  clip-cache:
