@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs'
 import { getRoom } from '../rooms/roomStore.js'
 import { buildImageFilename, saveImageBuffer, imagePath, deleteImageFile } from '../services/imageStorage.js'
 import { signImageToken, verifyImageToken } from '../services/imageToken.js'
-import { handleImageLocked, applyTrollPenalty } from '../sockets/gameHandlers.js'
+import { handleImageLocked, applyTrollPenalty, clearRoomTimer } from '../sockets/gameHandlers.js'
 import { IMAGE_LIMITS } from '../config/gameDefaults.js'
 import { checkImageAnswerRelevance } from '../services/clipCheck.js'
 
@@ -87,6 +87,7 @@ router.post('/upload-image', upload.single('image'), async (req, res) => {
       if (!relevant) {
         deleteImageFile(filename)
         // Penalise the troll picker and tell everyone what happened.
+        clearRoomTimer(roomCode)
         applyTrollPenalty(io, room, playerUuid)
         return res.status(422).json({
           ok: false,

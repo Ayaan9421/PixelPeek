@@ -392,6 +392,8 @@ function startNextTurn(io, room) {
   room.roundDeadline = Date.now() + room.settings.pickTimeSec * 1000
   room.currentAnswer = null
   // room.chatState = createChatState()
+  room.chatState.correctGuessers.clear()
+  room.chatState.roundScores = {}
   room.revealedHints = []
   cleanupRoomImage(room)
 
@@ -493,6 +495,7 @@ function calculateScoreDeltas(room, pickerUuid) {
 // then auto-advances the turn after 3 s so the room isn't stuck.
 export function applyTrollPenalty(io, room, pickerUuid) {
   // Capture scores before applying deltas so we can show what changed.
+  clearRoomTimer(room.code)
   const scoresBefore = {}
   for (const [uuid, player] of room.players.entries()) {
     scoresBefore[uuid] = player.score

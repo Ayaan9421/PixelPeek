@@ -95,30 +95,6 @@ function computeGuesserPoints(room) {
   return Math.max(0, pts)
 }
 
-// Compute picker points after the round ends (called by gameHandlers)
-// export function computeAndApplyPickerPoints(room) {
-//   const scores = room.chatState.roundScores ?? {}
-//   const roundPts = Object.values(scores).map(s => s.pts)
-//   const totalGuessers = room.players.size - 1  // everyone except picker
-//   const correctGuessers = room.chatState.correctGuessers.size
-
-//   const avgPts = roundPts.length > 0
-//     ? roundPts.reduce((a, b) => a + b, 0) / roundPts.length
-//     : 0
-//   const participationBonus = totalGuessers > 0
-//     ? (correctGuessers / totalGuessers) * 20
-//     : 0
-
-//   const pickerPts = Math.round(avgPts + participationBonus)
-
-//   const picker = room.players.get(room.pickerUuid)
-//   if (picker) {
-//     picker.score += pickerPts
-//     if (!room.chatState.roundScores) room.chatState.roundScores = {}
-//     room.chatState.roundScores[picker.uuid] = { name: picker.name, pts: pickerPts, isPicker: true }
-//   }
-// }
-
 export function computeAndApplyPickerPoints(room) {
   const scores = room.chatState.roundScores ?? {}
   const roundPts = Object.values(scores).map(s => s.pts || 0)
